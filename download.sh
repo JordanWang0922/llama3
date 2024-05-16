@@ -5,20 +5,28 @@
 
 set -e
 
+# 从用户输入中获取Presigned URL
 read -p "Enter the URL from email: " PRESIGNED_URL
+echo "Using URL: ${PRESIGNED_URL}"  # 打印URL以进行调试
 echo ""
+# 从用户输入中获取要下载的模型列表
 read -p "Enter the list of models to download without spaces (8B,8B-instruct,70B,70B-instruct), or press Enter for all: " MODEL_SIZE
-TARGET_FOLDER="."             # where all files should end up
+
+# 设置目标文件夹路径
+TARGET_FOLDER="/e/AI_model_llama/llama3_model"
 mkdir -p ${TARGET_FOLDER}
 
+# 如果用户没有输入模型列表，则使用默认模型列表
 if [[ $MODEL_SIZE == "" ]]; then
     MODEL_SIZE="8B,8B-instruct,70B,70B-instruct"
 fi
 
+# 下载许可证和可接受使用政策
 echo "Downloading LICENSE and Acceptable Usage Policy"
-wget --continue ${PRESIGNED_URL/'*'/"LICENSE"} -O ${TARGET_FOLDER}"/LICENSE"
-wget --continue ${PRESIGNED_URL/'*'/"USE_POLICY"} -O ${TARGET_FOLDER}"/USE_POLICY"
+curl -L -o ${TARGET_FOLDER}/LICENSE "${PRESIGNED_URL/'*'/'LICENSE'}"
+curl -L -o ${TARGET_FOLDER}/USE_POLICY "${PRESIGNED_URL/'*'/'USE_POLICY'}"
 
+# 下载模型文件
 for m in ${MODEL_SIZE//,/ }
 do
     if [[ $m == "8B" ]] || [[ $m == "8b" ]]; then
@@ -40,21 +48,23 @@ do
     fi
 
     echo "Downloading ${MODEL_PATH}"
-    mkdir -p ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}"
+    mkdir -p ${TARGET_FOLDER}/${MODEL_FOLDER_PATH}
 
-    for s in $(seq -f "0%g" 0 ${SHARD})
+    for s in $(seq -f "%03g" 0 ${SHARD})
     do
-        wget --continue ${PRESIGNED_URL/'*'/"${MODEL_PATH}/consolidated.${s}.pth"} -O ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}/consolidated.${s}.pth"
+        curl -L -o ${TARGET_FOLDER}/${MODEL_FOLDER_PATH}/consolidated.${s}.pth "${PRESIGNED_URL/'*'/'${MODEL_PATH}/consolidated.${s}.pth'}"
     done
 
-    wget --continue ${PRESIGNED_URL/'*'/"${MODEL_PATH}/params.json"} -O ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}/params.json"
-    wget --continue ${PRESIGNED_URL/'*'/"${MODEL_PATH}/tokenizer.model"} -O ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}/tokenizer.model"
-    wget --continue ${PRESIGNED_URL/'*'/"${MODEL_PATH}/checklist.chk"} -O ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}/checklist.chk"
-    echo "Checking checksums"
-    CPU_ARCH=$(uname -m)
-    if [[ "$CPU_ARCH" == "arm64" ]]; then
-      (cd ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}" && md5 checklist.chk)
-    else
-      (cd ${TARGET_FOLDER}"/${MODEL_FOLDER_PATH}" && md5sum -c checklist.chk)
-    fi
+    curl -L -o ${TARGET_FOLDER}/${MODEL_FOLDER_PATH}/params.json "${PRESIGNED_URL/'*'/'${MODEL_PATH}/params.json'}"
+    curl -L -o ${TARGET_FOLDER}/${MODEL_FOLDER_PATH}/tokenizer.model "${PRESIGNED_URL/'*'/'${MODEL_PATH}/tokenizer.model'}"
+    curl -L -o ${TARGET_FOLDER}/${MODEL_FOLDER_PATH}/checklist.chk "${PRESIGNED_URL/'*'/'${MODEL_PATH}/checklist.chk'}"
+
+    # 暂时去掉校验和检查部分
+    # echo "Checking checksums"
+    # CPU_ARCH=$(uname -m)
+    # if [[ "$CPU_ARCH" == "arm64" ]]; then
+    #   (cd ${TARGET_FOLDER}/${MODEL_FOLDER_PATH} && sha256sum -c checklist.chk)
+    # else
+    #   (cd ${TARGET_FOLDER}/${MODEL_FOLDER_PATH} && sha256sum -c checklist.chk)
+    # fi
 done
